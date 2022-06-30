@@ -1,5 +1,3 @@
-#Done By Deep Karia
-
 def Print_Vigenere_Table(Vig_Ma_Fn):
 	for rows in Vig_Ma_Fn: 
 		print(rows)
