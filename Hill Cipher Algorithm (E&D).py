@@ -1,136 +1,84 @@
-import math
-import string
 import numpy as np
-from sympy import Matrix
 
-def get_alphabet():
-	alphabet = {}
-	for character in string.ascii_uppercase:
-		alphabet[character] = string.ascii_uppercase.index(character)
 
-	reverse_alphabet = {}
-	for key, value in alphabet.items():
-		reverse_alphabet[value] = key
+# Función para convertir texto a matriz de números
+def text_to_matrix(text, size):
+    text = text.upper().replace(" ", "")
+    while len(text) % size != 0:
+        text += 'X'  # Relleno con 'X' si es necesario
+    matrix = []
+    for i in range(0, len(text), size):
+        block = [ord(char) - ord('A') for char in text[i:i + size]]
+        matrix.append(block)
+    return np.array(matrix)
 
-	return alphabet, reverse_alphabet
 
-def is_square(key):
-	key_length = len(key)
-	if 2 <= key_length == int(math.sqrt(key_length)) ** 2:
-		return True
-	else:
-		return False
+# Función para convertir matriz de números a texto
+def matrix_to_text(matrix):
+    text = ""
+    for row in matrix:
+        for num in row:
+            text += chr(num % 26 + ord('A'))
+    return text
 
-def get_key_matrix(key, alphabet):
-	k = list(key)
-	m = int(math.sqrt(len(k)))
-	for (i, character) in enumerate(k):
-		k[i] = alphabet[character]
-	
-	return np.reshape(k, (m, m))
 
-def get_text_matrix(text, m, alphabet):
-	matrix = list(text)
-	remainder = len(text) % m
-	for (i, character) in enumerate(matrix):
-		matrix[i] = alphabet[character]
-	if remainder != 0:
-		for i in range(m - remainder):
-			matrix.append(25)
+# Función para encriptar
+def encrypt_hill(plaintext, key):
+    size = len(key)
+    plaintext_matrix = text_to_matrix(plaintext, size)
+    key_matrix = np.array(key)
+    ciphertext_matrix = np.dot(plaintext_matrix, key_matrix) % 26
+    return matrix_to_text(ciphertext_matrix)
 
-	return np.reshape(matrix, (int(len(matrix) / m), m)).transpose()
 
-def encrypt(key, plaintext, alphabet):
-	m = key.shape[0]
-	m_grams = plaintext.shape[1]
+# Función para desencriptar
+def decrypt_hill(ciphertext, key):
+    size = len(key)
+    ciphertext_matrix = text_to_matrix(ciphertext, size)
+    key_matrix = np.array(key)
+    det = int(np.round(np.linalg.det(key_matrix)))  # Determinante de la matriz clave
+    det_inv = pow(det, -1, 26)  # Inverso modular del determinante
+    adjugate = (det_inv * np.round(det * np.linalg.inv(key_matrix)).astype(int)) % 26
+    plaintext_matrix = np.dot(ciphertext_matrix, adjugate) % 26
+    return matrix_to_text(plaintext_matrix)
 
-	ciphertext = np.zeros((m, m_grams)).astype(int)
-	for i in range(m_grams):
-		ciphertext[:, i] = np.reshape(np.dot(key, plaintext[:, i]) % len(alphabet), m)
-	return ciphertext
 
-def matrix_to_text(matrix, order, alphabet):
-	if order == 't':
-		text_array = np.ravel(matrix, order='F')
-	else:
-		text_array = np.ravel(matrix)
-	text = ""
-	for i in range(len(text_array)):
-		text = text + alphabet[text_array[i]]
-	return text
+def get_key_matrix(key_text):
+    key = [ord(char.upper()) - ord('A') for char in key_text]
+    size = int(len(key) ** 0.5)
+    key = np.array(key).reshape(size, size)
+    return key
 
-def get_inverse(matrix, alphabet):
-	alphabet_len = len(alphabet)
-	if math.gcd(int(round(np.linalg.det(matrix))), alphabet_len) == 1:
-		matrix = Matrix(matrix)
-		return np.matrix(matrix.inv_mod(alphabet_len))
-	else:
-		return None
 
-def decrypt(k_inverse, c, alphabet):
-	return encrypt(k_inverse, c, alphabet)
+# Función principal
+def main():
+    option = input("Seleccione la opción (E para encriptar, D para desencriptar): ").upper()
+    if option == 'E':
+        plaintext = input("Ingrese el mensaje a encriptar: ")
+        key_text = input("Ingrese la clave como texto: ")
+        key = get_key_matrix(key_text)
 
-while True:
-	print("\n---- Hill Cipher ----\n")
-	print("1) Encrypt a Message.")
-	print("2) Decipher a Message.")
-	print("3) Quit.\n")
-	choice=int(input("Enter Choice: "))
+        ciphertext = encrypt_hill(plaintext, key)
+        print("--------------------------------------------------")
+        print("Texto cifrado: ", ciphertext)
+        print("--------------------------------------------------")
 
-	alphabet, reverse_alphabet = get_alphabet()
+    elif option == 'D':
+        ciphertext = input("Ingrese el texto cifrado: ")
+        key_text = input("Ingrese la clave como texto: ")
+        key = get_key_matrix(key_text)
 
-	if choice == 1:
-		plaintext = input("\nEnter Plain Text: ").replace(" ","").upper()
-		key = input("\nEnter Key: ").replace(" ","").upper()
+        plaintext = decrypt_hill(ciphertext, key)
+        print("--------------------------------------------------")
+        print("Texto descifrado: ", plaintext)
+        print("--------------------------------------------------")
 
-		if is_square(key):
-			k = get_key_matrix(key, alphabet)
-			print("\nKey Matrix:\n", k)
+    else:
+        print("Opción no válida.")
 
-			p = get_text_matrix(plaintext, k.shape[0], alphabet)
-			print("\nPlaintext Matrix:\n", p)
+    print("\n\n")
 
-			c = encrypt(k, p, alphabet)
 
-			ciphertext = matrix_to_text(c, "t", reverse_alphabet)
-
-			print("\nCiphertext Matrix:\n", c, "\n")
-			
-			print("\nCiphertext: ", ciphertext)
-		    
-		else:
-		    print("\nThe length of the key must be a square and >= 2.\n")
-
-	elif choice == 2:
-		ciphertext = input("\nEnter Cipher Text: ").replace(" ","").upper()
-		key = input("\nEnter Key: ").replace(" ","").upper()
-
-		if is_square(key):
-			k = get_key_matrix(key, alphabet)
-
-			k_inverse = get_inverse(k, alphabet)
-
-			if k_inverse is not None:
-				c = get_text_matrix(ciphertext, k_inverse.shape[0], alphabet)
-
-				print("\nKey Matrix:\n", k)
-
-				print("\nKey Matrix Inverse:\n", k_inverse)
-
-				print("\nCiphertext Matrix:\n", c)
-
-				p = decrypt(k_inverse, c, alphabet)
-
-				plaintext = matrix_to_text(p, "t", reverse_alphabet)
-
-				print("\nPlaintext Matrix:\n", p, "\n")
-
-				print("\nPlaintext: ", plaintext)
-
-			else:
-				print("\nThe matrix of the key provided is not invertible.\n")
-		else:
-		    print("\nThe key must be a square and size >= 2.\n")
-	
-	elif choice == 3:
-		exit(0)
+if __name__ == "__main__":
+    while True:
+        main()
